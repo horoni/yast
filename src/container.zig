@@ -20,29 +20,30 @@ pub const ContainerType = enum(u8) {
 };
 
 pub const ContainerHeader = packed struct {
-    // TODO: add CRC32 checksum and magic number
     version: u16,
     container_type: u8,
     data_length: u32,
     data_offset: u32,
+    checksum: u32,
 
     const Self = @This();
     pub const header_size = blk: {
         var size = 0;
         const fields = std.meta.fields(Self);
-        for (fields) |field| {
-            size += @sizeOf(field.type);
-        }
+        for (fields) |field| size += @sizeOf(field.type);
         break :blk size;
     };
 
     pub fn init(container_type: ContainerType, data_length: u32) Self {
-        return Self{
+        var obj = Self{
             .version = HEADER_VERSION,
             .container_type = @intFromEnum(container_type),
             .data_length = data_length,
             .data_offset = ENCRYPTED_HEADER_SIZE,
+            .checksum = 0,
         };
+        obj.checksum = obj.getChecksum();
+        return obj;
     }
 
     pub fn toBytes(self: *const ContainerHeader, out: *[header_size]u8) void {
@@ -66,11 +67,25 @@ pub const ContainerHeader = packed struct {
             @field(result, field.name) = val;
         }
 
-        if (result.version > HEADER_VERSION) {
-            return error.IncompatibleHeaderVersion;
-        }
+        if (result.getChecksum() != result.checksum) return error.HeaderChecksumMismatch;
+        if (result.version > HEADER_VERSION) return error.IncompatibleHeaderVersion;
 
         return result;
+    }
+
+    /// Calculates checksum of struct
+    pub fn getChecksum(self: *Self) u32 {
+        var crc = std.hash.Crc32.init();
+
+        const fields = std.meta.fields(Self);
+        inline for (fields) |field| {
+            if (comptime std.mem.eql(u8, field.name, "checksum")) continue;
+            const val = @field(self, field.name);
+            var buf: [@sizeOf(field.type)]u8 = undefined;
+            std.mem.writeInt(field.type, &buf, val, .little);
+            crc.update(&buf);
+        }
+        return crc.final();
     }
 
     pub fn encrypt(self: *const Self, io: std.Io, out: *[ENCRYPTED_HEADER_SIZE]u8, key: *const [32]u8) !void {
