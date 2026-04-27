@@ -1,0 +1,22 @@
+.{
+    .name = .yast,
+    .version = "0.3.0",
+    .fingerprint = 0x2d1c0e0de9396f04, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .zignal = .{
+            .url = "git+https://github.com/arrufat/zignal#3cf5a61729bbfd7ef38b6b62c976c9cec030163e",
+            .hash = "zignal-0.11.0-dev-OrZ3s2n5JwDwNs0Iso1fFGv7vMvQT_gfCKtVnmhEeyGI",
+        },
+        .clap = .{
+            .url = "git+https://github.com/Hejsil/zig-clap#8d97efa1ee1e575443c7888d5c38e1c3fc145cf5",
+            .hash = "clap-0.12.0-oBajB7foAQDqlSwaSG5g0yq7xGbQARUsBk5T64gAOqP5",
+        },
+    },
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
