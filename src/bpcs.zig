@@ -138,11 +138,12 @@ pub fn BpcsStream(comptime N: usize) type {
             const w = self.width;
 
             var i: usize = 0;
-            while (i + 1 < px_count) : (i += 1) {
+            while (i < px_count - w) : (i += 1) {
                 self.diff_h[i] = ch[i] ^ ch[i + 1];
-                if (i + w < px_count) {
-                    self.diff_v[i] = ch[i] ^ ch[i + w];
-                }
+                self.diff_v[i] = ch[i] ^ ch[i + w];
+            }
+            while (i < px_count - 1) : (i += 1) {
+                self.diff_h[i] = ch[i] ^ ch[i + 1];
             }
             self.curr_bp = 0;
         }
