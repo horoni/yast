@@ -203,43 +203,25 @@ fn svbpcs(
         std.log.info("Data takes up {d}%", .{percent});
 
         // Put data into stream
-        var i: usize = 0;
-        const block_size = bpcs.BpcsStream(N).BYTES_PER_BLOCK;
-        while (i + block_size <= final_data.len) : (i += block_size) {
-            try stream.put(final_data[i..][0..block_size]);
-        }
-        if (i < final_data.len) {
-            var last_block = [_]u8{0} ** block_size;
-            @memcpy(last_block[0 .. final_data.len - i], final_data[i..]);
-            try io.randomSecure(last_block[final_data.len - i ..]);
-            try stream.put(&last_block);
-        }
+        try stream.putAll(io, final_data);
         stream.mergeAndIcgc();
     } else {
         // Decrypt / Extract
-        var list: std.ArrayList(u8) = try .initCapacity(allocator, capacity);
-        defer list.deinit(allocator);
-
-        const block_size = bpcs.BpcsStream(N).BYTES_PER_BLOCK;
-        while (!stream.exhausted) {
-            var block: [block_size]u8 = undefined;
-            try stream.get(&block);
-            try list.appendSlice(allocator, &block);
-        }
-
-        var final_data = list.items;
+        const data = try stream.getAll(allocator, capacity);
+        defer allocator.free(data);
+        var final_data = data;
         if (is_enc_vault) {
             const vault = try Vault.loadVault(io, allocator, VAULT_PATH, password);
             defer vault.deinit(allocator);
             if (vault.keys.len == 0) return error.NotEnoughKeys;
             
-            var con = try container.Container.deserialize(allocator, list.items, &vault.keys[vault.keys.len - 1]);
+            var con = try container.Container.deserialize(allocator, data, &vault.keys[vault.keys.len - 1]);
             defer con.deinit(allocator);
             final_data = try con.decryptVault(allocator, vault);
         }
 
         if (is_enc_passwd) {
-            var con = try container.Container.deserialize(allocator, list.items, &key);
+            var con = try container.Container.deserialize(allocator, data, &key);
             defer con.deinit(allocator);
             final_data = try con.decryptPassword(io, allocator, password);
         }

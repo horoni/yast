@@ -273,6 +273,20 @@ pub fn BpcsStream(comptime N: usize) type {
             try self.setNextGrid();
         }
 
+        pub fn putAll(self: *Self, io: std.Io, data: []u8) !void {
+            var i: usize = 0;
+            const block_size = BYTES_PER_BLOCK;
+            while (i + block_size <= data.len) : (i += block_size) {
+                try self.put(data[i..][0..block_size]);
+            }
+            if (i < data.len) {
+                var last_block = [_]u8{0} ** block_size;
+                @memcpy(last_block[0 .. data.len - i], data[i..]);
+                try io.randomSecure(last_block[data.len - i ..]);
+                try self.put(&last_block);
+            }
+        }
+
         pub fn get(self: *Self, out: *[BYTES_PER_BLOCK]u8) !void {
             if (self.exhausted) return error.Exhausted;
 
@@ -287,6 +301,18 @@ pub fn BpcsStream(comptime N: usize) type {
             if (!self.exhausted and self.grid[CONJ_BIT_IDX] != 0) {
                 self.conjugateGrid();
             }
+        }
+
+        pub fn getAll(self: *Self, allocator: std.mem.Allocator, capacity: u64) ![]u8 {
+            var buf: []u8 = try allocator.alloc(u8, capacity);
+            errdefer allocator.free(buf);
+
+            var i: usize = 0;
+            while (!self.exhausted) : (i += BYTES_PER_BLOCK) {
+                try self.get(buf[i .. i + BYTES_PER_BLOCK][0..BYTES_PER_BLOCK]);
+            }
+
+            return buf;
         }
 
         pub fn countCapacity(self: *Self) u64 {
