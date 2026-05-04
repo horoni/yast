@@ -1,5 +1,7 @@
 const std = @import("std");
 
+extern "env" fn jsRandomSecure(ptr: [*]u8, len: usize) void;
+
 pub fn Io() std.Io {
     return .{
         .userdata = null,
@@ -21,12 +23,10 @@ const wasmVtable = getVtable(.{
 });
 
 fn wasmRandom(userdata: ?*anyopaque, buffer: []u8) void {
-    _ = userdata;
-    @memset(buffer, 0);
+    wasmRandomSecure(userdata, buffer) catch { return; };
 }
 
 fn wasmRandomSecure(userdata: ?*anyopaque, buffer: []u8) std.Io.RandomSecureError!void {
     _ = userdata;
-    _ = buffer;
-    return error.EntropyUnavailable;
+    jsRandomSecure(buffer.ptr, buffer.len);
 }
