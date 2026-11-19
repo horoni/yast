@@ -29,10 +29,6 @@ pub fn build(b: *std.Build) void {
 
     run_cmd.step.dependOn(b.getInstallStep());
 
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-
     const exe_tests = b.addTest(.{
         .root_module = exe_main.root_module,
     });

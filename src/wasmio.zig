@@ -11,8 +11,8 @@ pub fn Io() std.Io {
 
 fn getVtable(sets: anytype) std.Io.VTable {
     var vt = std.Io.failing.vtable.*;
-    inline for (std.meta.fields(@TypeOf(sets))) |f| {
-        @field(vt, f.name) = @field(sets, f.name);
+    inline for (@typeInfo(@TypeOf(sets)).@"struct".field_names) |field_name| {
+        @field(vt, field_name) = @field(sets, field_name);
     }
     return vt;
 }

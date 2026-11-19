@@ -29,8 +29,8 @@ pub const ContainerHeader = packed struct {
     const Self = @This();
     pub const header_size = blk: {
         var size = 0;
-        const fields = std.meta.fields(Self);
-        for (fields) |field| size += @sizeOf(field.type);
+        const info = @typeInfo(Self).@"struct";
+        for (info.field_types) |FieldType| size += @sizeOf(FieldType);
         break :blk size;
     };
 
@@ -47,24 +47,24 @@ pub const ContainerHeader = packed struct {
     }
 
     pub fn toBytes(self: *const ContainerHeader, out: *[header_size]u8) void {
-        const fields = std.meta.fields(Self);
-        inline for (fields) |field| {
-            const offset = @offsetOf(Self, field.name);
-            const size   = @sizeOf(field.type);
-            const val    = @field(self, field.name);
-            std.mem.writeInt(field.type, out[offset..][0..size], val, .little);
+        const info = @typeInfo(Self).@"struct";
+        inline for (info.field_names, info.field_types) |field_name, FieldType| {
+            const offset = @offsetOf(Self, field_name);
+            const size   = @sizeOf(FieldType);
+            const val    = @field(self, field_name);
+            std.mem.writeInt(FieldType, out[offset..][0..size], val, .little);
         }
     }
 
     pub fn fromBytes(bytes: *const [header_size]u8) !Self {
         var result: Self = undefined;
-        const fields = std.meta.fields(Self);
+        const info = @typeInfo(Self).@"struct";
 
-        inline for (fields) |field| {
-            const offset = @offsetOf(Self, field.name);
-            const size   = @sizeOf(field.type);
-            const val    = std.mem.readInt(field.type, bytes[offset..][0..size], .little);
-            @field(result, field.name) = val;
+        inline for (info.field_names, info.field_types) |field_name, FieldType| {
+            const offset = @offsetOf(Self, field_name);
+            const size   = @sizeOf(FieldType);
+            const val    = std.mem.readInt(FieldType, bytes[offset..][0..size], .little);
+            @field(result, field_name) = val;
         }
 
         if (result.getChecksum() != result.checksum) return error.HeaderChecksumMismatch;
@@ -77,12 +77,12 @@ pub const ContainerHeader = packed struct {
     pub fn getChecksum(self: *Self) u32 {
         var crc = std.hash.Crc32.init();
 
-        const fields = std.meta.fields(Self);
-        inline for (fields) |field| {
-            if (comptime std.mem.eql(u8, field.name, "checksum")) continue;
-            const val = @field(self, field.name);
-            var buf: [@sizeOf(field.type)]u8 = undefined;
-            std.mem.writeInt(field.type, &buf, val, .little);
+        const info = @typeInfo(Self).@"struct";
+        inline for (info.field_names, info.field_types) |field_name, FieldType| {
+            if (comptime std.mem.eql(u8, field_name, "checksum")) continue;
+            const val = @field(self, field_name);
+            var buf: [@sizeOf(FieldType)]u8 = undefined;
+            std.mem.writeInt(FieldType, &buf, val, .little);
             crc.update(&buf);
         }
         return crc.final();

@@ -29,7 +29,7 @@ pub fn BpcsStream(comptime N: usize) type {
         exhausted: bool = false,
         embedding: bool,
 
-        grid: [GRID_SZ]u8 = [_]u8{0} ** GRID_SZ,
+        grid: [GRID_SZ]u8 = @splat(0),
         
         // Pre-calculated diffs for complexity optimization
         diff_h: []u8,
@@ -280,7 +280,7 @@ pub fn BpcsStream(comptime N: usize) type {
                 try self.put(data[i..][0..block_size]);
             }
             if (i < data.len) {
-                var last_block = [_]u8{0} ** block_size;
+                var last_block: [block_size]u8 = @splat(0);
                 @memcpy(last_block[0 .. data.len - i], data[i..]);
                 try io.randomSecure(last_block[data.len - i ..]);
                 try self.put(&last_block);
@@ -290,7 +290,7 @@ pub fn BpcsStream(comptime N: usize) type {
         pub fn get(self: *Self, out: *[BYTES_PER_BLOCK]u8) !void {
             if (self.exhausted) return error.Exhausted;
 
-            out.* = [_]u8{0} ** BYTES_PER_BLOCK;
+            out.* = @splat(0);
             for (0..BYTES_PER_BLOCK) |j| {
                 for (0..8) |i| {
                     out[j] |= @as(u8, self.grid[j * 8 + i]) << @intCast(i);
