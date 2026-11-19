@@ -74,5 +74,3 @@ pub const Vault = struct {
         return Vault{ .keys = keys };
     }
 };
-
-

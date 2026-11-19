@@ -19,7 +19,7 @@ pub fn BpcsStream(comptime N: usize) type {
 
         // Planar channel pointers
         channels: [3][]u8,
-        
+
         // Iteration state
         curr_channel: usize = 0,
         curr_bp: usize = 0,
@@ -30,7 +30,7 @@ pub fn BpcsStream(comptime N: usize) type {
         embedding: bool,
 
         grid: [GRID_SZ]u8 = @splat(0),
-        
+
         // Pre-calculated diffs for complexity optimization
         diff_h: []u8,
         diff_v: []u8,
@@ -95,7 +95,7 @@ pub fn BpcsStream(comptime N: usize) type {
                     const r = self.img_data[idx];
                     const g = self.img_data[idx + 1];
                     const b = self.img_data[idx + 2];
-                    
+
                     self.channels[0][i + j] = r ^ (r >> 1);
                     self.channels[1][i + j] = g ^ (g >> 1);
                     self.channels[2][i + j] = b ^ (b >> 1);
@@ -189,7 +189,7 @@ pub fn BpcsStream(comptime N: usize) type {
                     }
                     self.curr_x = 0;
                 }
-                
+
                 self.curr_y = 0;
                 self.curr_x = 0;
                 self.curr_bp += 1;

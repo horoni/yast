@@ -49,6 +49,6 @@ pub fn build(b: *std.Build) void {
     });
 
     exe_keys.root_module.addImport("clap", clap.module("clap"));
-    
+
     b.installArtifact(exe_keys);
 }

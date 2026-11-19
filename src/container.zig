@@ -156,7 +156,7 @@ pub const Container = struct {
 
         var hdr_plain: [ContainerHeader.header_size]u8 = undefined;
         try ContainerHeader.decrypt(blob[0..ENCRYPTED_HEADER_SIZE], &hdr_plain, key);
-        
+
         const header = try ContainerHeader.fromBytes(&hdr_plain);
 
         if (blob.len < header.data_offset + header.data_length) {

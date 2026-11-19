@@ -39,7 +39,7 @@ fn readPassword(io: std.Io, allocator: std.mem.Allocator, prompt: []const u8) ![
     termios.lflag.ECHOE = false;
     termios.lflag.ECHOK = false;
     termios.lflag.ECHONL = false;
-    
+
     try std.posix.tcsetattr(fd, .NOW, termios);
     defer std.posix.tcsetattr(fd, .NOW, old_termios) catch {};
 
@@ -286,14 +286,14 @@ fn cmdExport(io: std.Io, allocator: std.mem.Allocator, filepath:[]const u8, idx:
     const encoder = std.base64.standard.Encoder;
     var buf:[encoder.calcSize(KEY_SIZE)]u8 = undefined;
     const b64 = encoder.encode(&buf, &vault.keys[idx]);
-    
+
     std.log.info("Base64 Key [{d}]: {s}", .{ idx, b64 });
 }
 
 fn cmdImport(io: std.Io, allocator: std.mem.Allocator, filepath:[]const u8, b64_str:[]const u8) !void {
     const decoder = std.base64.standard.Decoder;
     var new_key: [KEY_SIZE]u8 = undefined;
-    
+
     decoder.decode(&new_key, b64_str) catch {
         std.log.err("Invalid base64 payload or incorrect length. Expected exactly 32 bytes encoded.", .{});
         return error.InvalidBase64;
@@ -413,7 +413,7 @@ fn runInit(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator)
 
     if (res.args.help != 0) return std.debug.print("Usage: yastkeys init <vault.dat>\n", .{});
     const filepath = res.positionals[0] orelse return error.MissingVaultPath;
-    
+
     try cmdInit(io, gpa, filepath);
 }
 
@@ -434,7 +434,7 @@ fn runList(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator)
 
     if (res.args.help != 0) return std.debug.print("Usage: yastkeys list <vault.dat>\n", .{});
     const filepath = res.positionals[0] orelse return error.MissingVaultPath;
-    
+
     try cmdList(io, gpa, filepath);
 }
 
@@ -455,7 +455,7 @@ fn runAdd(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) 
 
     if (res.args.help != 0) return std.debug.print("Usage: yastkeys add <vault.dat>\n", .{});
     const filepath = res.positionals[0] orelse return error.MissingVaultPath;
-    
+
     try cmdAdd(io, gpa, filepath);
 }
 
@@ -478,7 +478,7 @@ fn runDel(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) 
     if (res.args.help != 0) return std.debug.print("Usage: yastkeys del <vault.dat> <idx>\n", .{});
     const filepath = res.positionals[0] orelse return error.MissingVaultPath;
     const idx = res.positionals[1] orelse return error.MissingIndex;
-    
+
     try cmdDel(io, gpa, filepath, idx);
 }
 
@@ -503,7 +503,7 @@ fn runSwap(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator)
     const filepath = res.positionals[0] orelse return error.MissingVaultPath;
     const idx1 = res.positionals[1] orelse return error.MissingIndex;
     const idx2 = res.positionals[2] orelse return error.MissingIndex;
-    
+
     try cmdSwap(io, gpa, filepath, idx1, idx2);
 }
 
@@ -526,7 +526,7 @@ fn runExport(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterato
     if (res.args.help != 0) return std.debug.print("Usage: yastkeys export <vault.dat> <idx>\n", .{});
     const filepath = res.positionals[0] orelse return error.MissingVaultPath;
     const idx = res.positionals[1] orelse return error.MissingIndex;
-    
+
     try cmdExport(io, gpa, filepath, idx);
 }
 
@@ -549,6 +549,6 @@ fn runImport(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterato
     if (res.args.help != 0) return std.debug.print("Usage: yastkeys import <vault.dat> <b64_str>\n", .{});
     const filepath = res.positionals[0] orelse return error.MissingVaultPath;
     const b64_str = res.positionals[1] orelse return error.MissingBase64;
-    
+
     try cmdImport(io, gpa, filepath, b64_str);
 }

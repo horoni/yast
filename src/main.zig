@@ -158,7 +158,7 @@ fn svbpcs(
             std.log.err("Encrypt mode requires input file (-i)", .{});
             return error.MissingInput;
         } ;
-        
+
         // Read file
         const file: std.Io.File = std.Io.Dir.cwd().openFile(io, in_path, .{}) catch |err| {
             std.log.err("Failed to open {s}: {any}", .{ in_path, err });
@@ -176,7 +176,7 @@ fn svbpcs(
             const vault: Vault = try .loadVault(io, allocator, VAULT_PATH, password);
             defer vault.deinit(allocator);
             if (vault.keys.len == 0) return error.NotEnoughKeys;
-            
+
             var con: container.Container = try .initVault(io, allocator, data, vault);
             defer con.deinit(allocator);
             final_data = try con.serialize(io, allocator, &vault.keys[vault.keys.len - 1]);
@@ -214,7 +214,7 @@ fn svbpcs(
             const vault = try Vault.loadVault(io, allocator, VAULT_PATH, password);
             defer vault.deinit(allocator);
             if (vault.keys.len == 0) return error.NotEnoughKeys;
-            
+
             var con = try container.Container.deserialize(allocator, data, &vault.keys[vault.keys.len - 1]);
             defer con.deinit(allocator);
             final_data = try con.decryptVault(allocator, vault);
@@ -279,4 +279,3 @@ fn readPassword(io: std.Io, allocator: std.mem.Allocator, prompt: []const u8) ![
     const line = std.mem.trimEnd(u8, input, "\r");
     return try allocator.dupe(u8, line);
 }
-
