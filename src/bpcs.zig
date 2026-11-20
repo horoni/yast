@@ -370,6 +370,19 @@ fn fillTestImage(buf: []u8, width: u32, height: u32) void {
     }
 }
 
+fn fillCheckerboard(buf: []u8, width: u32, height: u32) void {
+    const w: usize = width;
+    const px_count = w * @as(usize, height);
+    for (0..px_count) |i| {
+        const x = i % w;
+        const y = i / w;
+        const value: u8 = if ((x + y) & 1 == 0) 0x00 else 0xff;
+        buf[i * 3] = value;
+        buf[i * 3 + 1] = value;
+        buf[i * 3 + 2] = value;
+    }
+}
+
 fn expectCoverTooSmall(
     comptime N: usize,
     allocator: std.mem.Allocator,
@@ -466,6 +479,64 @@ test "rejects invalid bitplane counts" {
         error.InvalidBitplanes,
         BpcsStream(9).init(allocator, buf, 9, 9, 9, 0, true),
     );
+}
+
+fn roundTripAtMaxThreshold(comptime N: usize, allocator: std.mem.Allocator) !void {
+    const width: u32 = N;
+    const height: u32 = N;
+    const px_count = @as(usize, width) * height;
+    const buf = try allocator.alloc(u8, px_count * 6);
+    defer allocator.free(buf);
+    fillCheckerboard(buf, width, height);
+
+    var data: [BpcsStream(N).BYTES_PER_BLOCK]u8 = undefined;
+    for (&data, 0..) |*byte, i| {
+        byte.* = @truncate(i *% 19 +% 5);
+    }
+
+    const threshold: u32 = @intCast(N * (N - 1));
+
+    var embedding = try BpcsStream(N).init(allocator, buf, width, height, 8, threshold, true);
+    defer embedding.deinit(allocator);
+    try embedding.put(&data);
+    embedding.mergeAndIcgc();
+
+    var extraction = try BpcsStream(N).init(allocator, buf, width, height, 8, threshold, false);
+    defer extraction.deinit(allocator);
+
+    var out: [BpcsStream(N).BYTES_PER_BLOCK]u8 = undefined;
+    try extraction.get(&out);
+    try std.testing.expectEqualSlices(u8, &data, &out);
+}
+
+test "rejects thresholds above half the maximum grid complexity" {
+    const allocator = std.testing.allocator;
+
+    inline for (.{ 3, 9, 31 }) |N| {
+        const width: u32 = N;
+        const height: u32 = N;
+        const px_count = @as(usize, width) * height;
+        const buf = try allocator.alloc(u8, px_count * 6);
+        defer allocator.free(buf);
+        fillTestImage(buf, width, height);
+
+        const max_threshold: u32 = @intCast(N * (N - 1));
+        try std.testing.expectError(
+            error.InvalidThreshold,
+            BpcsStream(N).init(allocator, buf, width, height, 8, max_threshold + 1, true),
+        );
+
+        var stream = try BpcsStream(N).init(allocator, buf, width, height, 8, max_threshold, true);
+        stream.deinit(allocator);
+    }
+}
+
+test "maximum safe threshold round-trips" {
+    const allocator = std.testing.allocator;
+
+    try roundTripAtMaxThreshold(3, allocator);
+    try roundTripAtMaxThreshold(9, allocator);
+    try roundTripAtMaxThreshold(31, allocator);
 }
 
 test "covers at and above the grid size round-trip" {
