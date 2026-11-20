@@ -358,3 +358,126 @@ pub fn BpcsStream(comptime N: usize) type {
         }
     };
 }
+
+fn fillTestImage(buf: []u8, width: u32, height: u32) void {
+    const px_count = @as(usize, width) * height;
+    for (buf[0 .. px_count * 3], 0..) |*byte, i| {
+        byte.* = @truncate(i *% 37 +% 11);
+    }
+}
+
+fn expectCoverTooSmall(
+    comptime N: usize,
+    allocator: std.mem.Allocator,
+    width: u32,
+    height: u32,
+) !void {
+    const px_count = @as(usize, width) * height;
+    const buf = try allocator.alloc(u8, px_count * 6);
+    defer allocator.free(buf);
+    fillTestImage(buf, width, height);
+
+    try std.testing.expectError(
+        error.CoverTooSmall,
+        BpcsStream(N).init(allocator, buf, width, height, 8, 0, true),
+    );
+}
+
+fn roundTrip(
+    comptime N: usize,
+    allocator: std.mem.Allocator,
+    width: u32,
+    height: u32,
+) !void {
+    const px_count = @as(usize, width) * height;
+    const buf = try allocator.alloc(u8, px_count * 6);
+    defer allocator.free(buf);
+    fillTestImage(buf, width, height);
+
+    var data: [BpcsStream(N).BYTES_PER_BLOCK]u8 = undefined;
+    for (&data, 0..) |*byte, i| {
+        byte.* = @truncate(i *% 13 +% 7);
+    }
+
+    const grid_cols = @divTrunc(@as(u64, width), N);
+    const grid_rows = @divTrunc(@as(u64, height), N);
+    const expected_capacity: u64 = 3 * 8 * grid_cols * grid_rows * BpcsStream(N).BYTES_PER_BLOCK;
+
+    var embedding = try BpcsStream(N).init(allocator, buf, width, height, 8, 0, true);
+    defer embedding.deinit(allocator);
+    try std.testing.expectEqual(expected_capacity, embedding.countCapacity());
+
+    try embedding.put(&data);
+    embedding.mergeAndIcgc();
+
+    var extraction = try BpcsStream(N).init(allocator, buf, width, height, 8, 0, false);
+    defer extraction.deinit(allocator);
+    try std.testing.expectEqual(expected_capacity, extraction.countCapacity());
+
+    var out: [BpcsStream(N).BYTES_PER_BLOCK]u8 = undefined;
+    try extraction.get(&out);
+    try std.testing.expectEqualSlices(u8, &data, &out);
+}
+
+test "rejects covers smaller than the grid" {
+    const allocator = std.testing.allocator;
+
+    try expectCoverTooSmall(3, allocator, 2, 2);
+    try expectCoverTooSmall(3, allocator, 2, 3);
+    try expectCoverTooSmall(3, allocator, 3, 2);
+
+    try expectCoverTooSmall(9, allocator, 1, 1);
+    try expectCoverTooSmall(9, allocator, 8, 8);
+    try expectCoverTooSmall(9, allocator, 8, 9);
+    try expectCoverTooSmall(9, allocator, 9, 8);
+
+    try expectCoverTooSmall(31, allocator, 30, 31);
+    try expectCoverTooSmall(31, allocator, 31, 30);
+}
+
+test "rejects image buffers shorter than six bytes per pixel" {
+    const allocator = std.testing.allocator;
+    const px_count: usize = 9 * 9;
+    const buf = try allocator.alloc(u8, px_count * 6 - 1);
+    defer allocator.free(buf);
+    @memset(buf, 0);
+
+    try std.testing.expectError(
+        error.InvalidImageBuffer,
+        BpcsStream(9).init(allocator, buf, 9, 9, 8, 0, true),
+    );
+}
+
+test "rejects invalid bitplane counts" {
+    const allocator = std.testing.allocator;
+    const buf = try allocator.alloc(u8, 9 * 9 * 6);
+    defer allocator.free(buf);
+    fillTestImage(buf, 9, 9);
+
+    try std.testing.expectError(
+        error.InvalidBitplanes,
+        BpcsStream(9).init(allocator, buf, 9, 9, 0, 0, true),
+    );
+    try std.testing.expectError(
+        error.InvalidBitplanes,
+        BpcsStream(9).init(allocator, buf, 9, 9, 9, 0, true),
+    );
+}
+
+test "covers at and above the grid size round-trip" {
+    const allocator = std.testing.allocator;
+
+    try roundTrip(3, allocator, 3, 3);
+    try roundTrip(3, allocator, 4, 4);
+    try roundTrip(3, allocator, 5, 8);
+
+    try roundTrip(9, allocator, 9, 9);
+    try roundTrip(9, allocator, 9, 10);
+    try roundTrip(9, allocator, 10, 9);
+    try roundTrip(9, allocator, 10, 10);
+    try roundTrip(9, allocator, 27, 27);
+
+    try roundTrip(31, allocator, 31, 31);
+    try roundTrip(31, allocator, 32, 32);
+    try roundTrip(31, allocator, 62, 63);
+}
