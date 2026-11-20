@@ -159,13 +159,22 @@ pub const Container = struct {
 
         const header = try ContainerHeader.fromBytes(&hdr_plain);
 
-        if (blob.len < header.data_offset + header.data_length) {
+        if (header.data_offset != ENCRYPTED_HEADER_SIZE) {
+            return error.InvalidHeader;
+        }
+
+        // Do the bounds check with usize. Adding the two u32 header fields can
+        // overflow, which previously let a crafted header pass the check and
+        // slice out of bounds.
+        const data_offset: usize = header.data_offset;
+        const data_length: usize = header.data_length;
+        if (data_offset > blob.len or data_length > blob.len - data_offset) {
             return error.PayloadTruncated;
         }
 
         return Self{
             .header = header,
-            .payload = try allocator.dupe(u8, blob[header.data_offset .. header.data_offset + header.data_length]),
+            .payload = try allocator.dupe(u8, blob[data_offset .. data_offset + data_length]),
         };
     }
 
