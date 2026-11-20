@@ -512,7 +512,7 @@ fn roundTripAtMaxThreshold(comptime N: usize, allocator: std.mem.Allocator) !voi
 test "rejects thresholds above half the maximum grid complexity" {
     const allocator = std.testing.allocator;
 
-    inline for (.{ 3, 9, 31 }) |N| {
+    inline for (.{ 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31 }) |N| {
         const width: u32 = N;
         const height: u32 = N;
         const px_count = @as(usize, width) * height;
@@ -534,9 +534,9 @@ test "rejects thresholds above half the maximum grid complexity" {
 test "maximum safe threshold round-trips" {
     const allocator = std.testing.allocator;
 
-    try roundTripAtMaxThreshold(3, allocator);
-    try roundTripAtMaxThreshold(9, allocator);
-    try roundTripAtMaxThreshold(31, allocator);
+    inline for (.{ 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31 }) |N| {
+        try roundTripAtMaxThreshold(N, allocator);
+    }
 }
 
 test "covers at and above the grid size round-trip" {
