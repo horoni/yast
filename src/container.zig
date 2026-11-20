@@ -343,6 +343,34 @@ pub const Container = struct {
     }
 };
 
+test "legacy container rejects headers that point outside the blob" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    const key: [32]u8 = @splat(0x41);
+
+    var header = ContainerHeader{
+        .version = HEADER_VERSION,
+        .container_type = @intFromEnum(ContainerType.password_encrypted),
+        .data_length = std.math.maxInt(u32),
+        .data_offset = ENCRYPTED_HEADER_SIZE,
+        .checksum = 0,
+    };
+    header.checksum = header.getChecksum();
+
+    var blob: [ENCRYPTED_HEADER_SIZE + 16]u8 = undefined;
+    try header.encrypt(io, blob[0..ENCRYPTED_HEADER_SIZE], &key);
+    @memset(blob[ENCRYPTED_HEADER_SIZE..], 0);
+
+    try std.testing.expectError(error.PayloadTruncated, Container.deserialize(allocator, &blob, &key));
+
+    header.data_offset = 0;
+    header.data_length = 16;
+    header.checksum = header.getChecksum();
+    try header.encrypt(io, blob[0..ENCRYPTED_HEADER_SIZE], &key);
+
+    try std.testing.expectError(error.InvalidHeader, Container.deserialize(allocator, &blob, &key));
+}
+
 pub fn deriveCoverKey(width: u32, height: u32, entr: u64, entra: []u8, key: *[32]u8) void {
     var ctx = crypto.hash.blake2.Blake2b256.init(.{});
     var buf: [16]u8 = undefined;
