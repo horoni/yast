@@ -53,6 +53,10 @@ pub fn BpcsStream(comptime N: usize) type {
             };
             if (img_data.len / 6 < px_count) return error.InvalidImageBuffer;
             if (bitplanes == 0 or bitplanes > 8) return error.InvalidBitplanes;
+            // Above half the maximum grid complexity, conjugation can no
+            // longer guarantee that an embedded grid passes the threshold
+            // filter used by setNextGrid().
+            if (@as(usize, min_complexity) > N * (N - 1)) return error.InvalidThreshold;
 
             const diff_h = try allocator.alloc(u8, px_count);
             errdefer allocator.free(diff_h);

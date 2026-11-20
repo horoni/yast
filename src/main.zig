@@ -57,7 +57,8 @@ pub fn main(init: std.process.Init) !void {
         \\Notes:
         \\  I.   if output name is not specified, then it will be 8 random characters.
         \\  II.  maximum complexity C for NxN grid is 2N(N-1). for ex. C = 2*9(9-1) = 144.
-        \\       or C/2 = N^2 - N. you should use C/2 as threshold.
+        \\       or C/2 = N^2 - N. you should use C/2 as threshold. Values above
+        \\       N*(N-1) are rejected.
         \\  III. when N is odd, N^2 mod 8 = 1. this one bit needed for conjugation bit.
         \\  IV.  encrypts with all keys that lies in the vault at /etc/yast/vaultz.dat
         \\  V.   when encryption is enabled it uses Argon2id and xChaCha20-poly1305.
@@ -79,7 +80,6 @@ pub fn main(init: std.process.Init) !void {
     };
 
     const grid_size = if (res.args.size) |s| @as(usize, @intCast(s)) else 9;
-    const threshold = if (res.args.threshold) |t| @as(u32, @intCast(t)) else @as(u32, @intCast(grid_size * grid_size - grid_size));
     const chacrypt = res.args.wamaku != 0;
     const pascrypt = res.args.password != 0;
 
@@ -99,6 +99,20 @@ pub fn main(init: std.process.Init) !void {
 
     switch (grid_size) {
         inline 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31 => |N| {
+            // Conjugation only guarantees that an embedded grid survives the
+            // threshold filter when the threshold is at most half the maximum
+            // grid complexity: 2N(N-1) / 2 = N(N-1).
+            const max_threshold = N * (N - 1);
+            const requested_threshold = res.args.threshold orelse max_threshold;
+            if (requested_threshold > max_threshold) {
+                std.log.err(
+                    "Invalid threshold: {d}. Maximum for grid size {d} is {d} (N*(N-1)).",
+                    .{ requested_threshold, grid_size, max_threshold },
+                );
+                return error.InvalidThreshold;
+            }
+            const threshold: u32 = @intCast(requested_threshold);
+
             try svbpcs(N, gpa, io, img_buf, img.cols, img.rows, threshold, mode_encrypt, chacrypt, pascrypt, res.args.input, res.args.output);
         },
         else => {
