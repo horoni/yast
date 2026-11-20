@@ -44,7 +44,16 @@ pub fn BpcsStream(comptime N: usize) type {
             min_complexity: u32,
             embedding: bool,
         ) !Self {
-            const px_count = @as(usize, width) * height;
+            if (@as(usize, width) < N or @as(usize, height) < N) {
+                return error.CoverTooSmall;
+            }
+
+            const px_count = std.math.mul(usize, @as(usize, width), @as(usize, height)) catch {
+                return error.ImageTooLarge;
+            };
+            if (img_data.len / 6 < px_count) return error.InvalidImageBuffer;
+            if (bitplanes == 0 or bitplanes > 8) return error.InvalidBitplanes;
+
             const diff_h = try allocator.alloc(u8, px_count);
             errdefer allocator.free(diff_h);
             const diff_v = try allocator.alloc(u8, px_count);
@@ -138,11 +147,11 @@ pub fn BpcsStream(comptime N: usize) type {
             const w = self.width;
 
             var i: usize = 0;
-            while (i < px_count - w) : (i += 1) {
+            while (i + w < px_count) : (i += 1) {
                 self.diff_h[i] = ch[i] ^ ch[i + 1];
                 self.diff_v[i] = ch[i] ^ ch[i + w];
             }
-            while (i < px_count - 1) : (i += 1) {
+            while (i + 1 < px_count) : (i += 1) {
                 self.diff_h[i] = ch[i] ^ ch[i + 1];
             }
             self.curr_bp = 0;
@@ -176,14 +185,13 @@ pub fn BpcsStream(comptime N: usize) type {
             const h = self.height;
 
             while (self.curr_bp < self.bitplanes) {
-                while (self.curr_y <= h - N) : (self.curr_y += N) {
-                    const start_x = if (self.curr_x > 0) self.curr_x else 0;
-                    var x = start_x;
-                    while (x <= w - N) : (x += N) {
+                while (self.curr_y + N <= h) : (self.curr_y += N) {
+                    var x = self.curr_x;
+                    while (x + N <= w) : (x += N) {
                         const idx = self.curr_y * w + x;
                         if (self.calcComplexity(idx, @intCast(self.curr_bp)) >= self.min_complexity) {
                             self.extractGrid(idx, @intCast(self.curr_bp));
-                            self.curr_x = x + @as(u32, N);
+                            self.curr_x = x + N;
                             return;
                         }
                     }
@@ -329,9 +337,9 @@ pub fn BpcsStream(comptime N: usize) type {
 
                 for (0..self.bitplanes) |bp| {
                     var j: usize = 0;
-                    while (j <= self.height - GRID_H) : (j += GRID_H) {
+                    while (j + GRID_H <= self.height) : (j += GRID_H) {
                         var i: usize = 0;
-                        while (i <= self.width - GRID_W) : (i += GRID_W) {
+                        while (i + GRID_W <= self.width) : (i += GRID_W) {
                             if (self.calcComplexity(j * self.width + i, @intCast(bp)) >= self.min_complexity) {
                                 grids += 1;
                             }

@@ -130,7 +130,12 @@ fn svbpcs(
     input_path: ?[]const u8,
     output_path: ?[]const u8,
 ) !void {
-    var stream = try bpcs.BpcsStream(N).init(allocator, img_buf, width, height, 8, threshold, embedding);
+    var stream = bpcs.BpcsStream(N).init(allocator, img_buf, width, height, 8, threshold, embedding) catch |err| {
+        if (err == error.CoverTooSmall) {
+            std.log.err("Cover image is too small: need at least {d}x{d} pixels for grid size {d}", .{ N, N, N });
+        }
+        return err;
+    };
     defer stream.deinit(allocator);
     const capacity = stream.countCapacity();
 
