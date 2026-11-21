@@ -42,7 +42,7 @@ pub fn build(b: *std.Build) void {
     // so `zig build test` runs them instead of only compiling the executable.
     const library_test_roots = [_][]const u8{
         "src/bpcs.zig",
-        "src/container.zig",
+        "src/container/root.zig",
     };
     for (library_test_roots) |root| {
         const library_tests = b.addTest(.{

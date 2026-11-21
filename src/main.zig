@@ -3,7 +3,7 @@ const Io = std.Io;
 const zignal = @import("zignal");
 const clap = @import("clap");
 const bpcs = @import("bpcs.zig");
-const container = @import("container.zig");
+const container = @import("container/root.zig");
 
 const Vault = @import("vault.zig").Vault;
 const VAULT_PATH = "/etc/yast/vaultz.dat";
@@ -157,17 +157,14 @@ fn svbpcs(
     std.log.info("Grid size: {d}", .{N});
     std.log.info("Block size: {d}", .{bpcs.BpcsStream(N).BYTES_PER_BLOCK});
     std.log.info("Available capacity: {d}", .{capacity});
-    std.log.info("Header size: {d} | {d}", .{container.ContainerHeader.header_size, container.ENCRYPTED_HEADER_SIZE});
+    std.log.info("Header size: {d} | {d}", .{container.ContainerHeader.header_size, container.V2_HEADER_SIZE});
 
     const is_enc = is_enc_passwd or is_enc_vault;
-    var key: [32]u8 = undefined;
     var password: []u8 = undefined;
     if (is_enc) {
         password = try readPassword(io, allocator, "Enter password: ");
-        container.deriveCoverKey(width, height, 0, password, &key);
     }
     defer if (is_enc) {
-        std.crypto.secureZero(u8, &key);
         std.crypto.secureZero(u8, password);
         allocator.free(password);
     };
@@ -196,16 +193,17 @@ fn svbpcs(
             defer vault.deinit(allocator);
             if (vault.keys.len == 0) return error.NotEnoughKeys;
 
-            var con: container.Container = try .initVault(io, allocator, data, vault);
+            const vault_key = &vault.keys[vault.keys.len - 1];
+            var con: container.Container = try .initVault(io, allocator, data, vault.keys);
             defer con.deinit(allocator);
-            final_data = try con.serialize(io, allocator, &vault.keys[vault.keys.len - 1]);
+            final_data = try con.serialize(io, allocator, .{ .key = vault_key });
             std.log.info("Encryption overhead: {d}", .{final_data.len - f_size});
         }
 
         if (is_enc_passwd) {
             var con: container.Container = try .initPassword(io, allocator, data, password);
             defer con.deinit(allocator);
-            final_data = try con.serialize(io, allocator, &key);
+            final_data = try con.serialize(io, allocator, .{ .password = password });
             std.log.info("Encryption overhead: {d}", .{final_data.len - f_size});
         }
 
@@ -229,19 +227,29 @@ fn svbpcs(
         const data = try stream.getAll(allocator, capacity);
         defer allocator.free(data);
         var final_data = data;
+
         if (is_enc_vault) {
             const vault = try Vault.loadVault(io, allocator, VAULT_PATH, password);
             defer vault.deinit(allocator);
             if (vault.keys.len == 0) return error.NotEnoughKeys;
 
-            var con = try container.Container.deserialize(allocator, data, &vault.keys[vault.keys.len - 1]);
+            const vault_key = &vault.keys[vault.keys.len - 1];
+            var con = try container.Container.deserialize(io, allocator, data, .{ .key = vault_key }, vault_key);
             defer con.deinit(allocator);
-            final_data = try con.decryptVault(allocator, vault);
+            warnV1(con.header.version);
+            final_data = try con.decryptVault(allocator, vault.keys);
         }
 
         if (is_enc_passwd) {
-            var con = try container.Container.deserialize(allocator, data, &key);
+            // v1 password headers use this fast, unsalted key. v2
+            // headers derive a salted Argon2id key instead.
+            var v1_key: [32]u8 = undefined;
+            container.deriveCoverKey(width, height, 0, password, &v1_key);
+            defer std.crypto.secureZero(u8, &v1_key);
+
+            var con = try container.Container.deserialize(io, allocator, data, .{ .password = password }, &v1_key);
             defer con.deinit(allocator);
+            warnV1(con.header.version);
             final_data = try con.decryptPassword(io, allocator, password);
         }
 
@@ -252,6 +260,12 @@ fn svbpcs(
         defer out_file.close(io);
         try out_file.writePositionalAll(io, final_data, 0);
         std.log.info("Extracted to {s}", .{out_path});
+    }
+}
+
+fn warnV1(version: u16) void {
+    if (version == container.V1_VERSION) {
+        std.log.warn("v1 container: header is unauthenticated and uses a fast key derivation. Re-encrypt it to upgrade.", .{});
     }
 }
 
